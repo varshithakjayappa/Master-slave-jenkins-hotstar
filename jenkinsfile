@@ -1,0 +1,40 @@
+pipeline {
+    agent none
+    tools {
+        jdk 'jdk-11'
+        maven 'mvn'
+    }
+    stages {
+        stage('checkout') {
+            agent { label 'slave1' }
+            steps {
+                git 'https://github.com/varshithakjayappa/Master-slave-jenkins-hotstar.git'
+            }
+        }
+        stage('compile') {
+            agent { label 'slave1' }
+            steps {
+                sh 'mvn compile'
+            }
+        }
+        stage('artifacts') {
+            agent { label 'slave1' }
+            steps {
+                sh 'mvn clean package -DskipTests'
+                archiveArtifacts artifacts: 'target/*.war', followSymlinks: false
+            }
+        }
+        stage('deploy') {
+            agent { label 'slave2' }
+            steps {
+           copyArtifacts (filter: 'target/*.war', fingerprintArtifacts: true, includeBuildNumberInTargetPath: true, projectName: 'hotstar', selector: lastSuccessful(), target: 'deploy/')               
+           deploy adapters: [tomcat9(
+                    alternativeDeploymentContext: '',
+                    credentialsId: 'tomcat-cred',
+                    path: '',
+                    url: 'http://18.198.22.7:8081/manager/text'
+                )], contextPath: 'myapp', war: 'target/*.war'
+            }
+        }
+    }
+}
